@@ -93,11 +93,15 @@ export const getAccessToken = (): string | null => {
   return cachedAccessToken;
 };
 
-export const logout = async () => {
-  await auth.signOut();
+export const handleTokenExpiry = () => {
   cachedAccessToken = null;
   localStorage.removeItem("google_sync_logged_in");
   localStorage.removeItem("google_sync_access_token");
+};
+
+export const logout = async () => {
+  await auth.signOut();
+  handleTokenExpiry();
 };
 
 const BACKUP_FILE_NAME = "hisab_khata_backup.json";
@@ -120,7 +124,7 @@ export const checkGoogleDriveBackup = async (
 
     if (!res.ok) {
       if (res.status === 401) {
-        await logout();
+        handleTokenExpiry();
         throw new Error("Google session expired. Please sign in again.");
       }
       throw new Error("Failed to search Google Drive files");
@@ -168,7 +172,7 @@ export const backupToGoogleDrive = async (
 
     if (!res.ok) {
       if (res.status === 401) {
-        await logout();
+        handleTokenExpiry();
         throw new Error("Google session expired. Please sign in again.");
       }
       throw new Error("Failed to upload sales data to Google Drive");
@@ -201,7 +205,7 @@ export const restoreFromGoogleDrive = async (): Promise<SyncData | null> => {
 
     if (!res.ok) {
       if (res.status === 401) {
-        await logout();
+        handleTokenExpiry();
         throw new Error("Google session expired. Please sign in again.");
       }
       throw new Error("Failed to download backup content");
