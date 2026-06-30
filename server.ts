@@ -8,6 +8,17 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Enable CORS for all requests (crucial for PWABuilder and external tools to fetch manifest.json & icon assets)
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Body parser middlewares for handling backup payload sizes
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true, limit: "50mb" }));
