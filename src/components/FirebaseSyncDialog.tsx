@@ -1,0 +1,593 @@
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  X,
+  Cloud,
+  CloudUpload,
+  RefreshCw,
+  CheckCircle2,
+  Shield,
+  DownloadCloud,
+  LogOut,
+  AlertCircle,
+  ExternalLink,
+} from "lucide-react";
+import { SaleItem, StoreInfo } from "../types";
+import { useLanguage } from "../LanguageContext";
+import {
+  firebaseSignIn,
+  firebaseSignOut,
+  backupToFirebase,
+  restoreFromFirebase,
+  checkFirebaseBackup,
+  handleRedirectResult,
+} from "../lib/firebaseSync";
+import { auth } from "../lib/firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
+
+interface FirebaseSyncDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  sales: SaleItem[];
+  expenses: any[];
+  storeInfo: StoreInfo | null;
+  onRestoreSales: (restoredSales: SaleItem[]) => void;
+  onRestoreExpenses: (restoredExpenses: any[]) => void;
+  onRestoreStoreInfo: (storeInfo: StoreInfo | null) => void;
+}
+
+export const FirebaseSyncDialog: React.FC<FirebaseSyncDialogProps> = ({
+  isOpen,
+  onClose,
+  sales,
+  expenses,
+  storeInfo,
+  onRestoreSales,
+  onRestoreExpenses,
+  onRestoreStoreInfo,
+}) => {
+  const { t, language, formatNumber } = useLanguage();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [syncStatus, setSyncStatus] = useState<
+    "idle" | "syncing" | "success" | "error"
+  >("idle");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasBackup, setHasBackup] = useState<boolean>(false);
+  const [backupTime, setBackupTime] = useState<string | null>(null);
+  const [checkingBackup, setCheckingBackup] = useState<boolean>(false);
+
+  const [lastSync, setLastSync] = useState(() => {
+    return localStorage.getItem("firebase_sync_last_time") || t("notSynced");
+  });
+
+  const [isInIframe, setIsInIframe] = useState(false);
+
+  useEffect(() => {
+    try {
+      setIsInIframe(window.self !== window.top);
+    } catch (e) {
+      setIsInIframe(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const checkRedirect = async () => {
+      try {
+        const user = await handleRedirectResult();
+        if (user) {
+          const restoredData = await restoreFromFirebase();
+          if (restoredData) {
+            if (restoredData.sales) onRestoreSales(restoredData.sales);
+            if (restoredData.expenses) onRestoreExpenses(restoredData.expenses);
+            if (restoredData.storeInfo) onRestoreStoreInfo(restoredData.storeInfo);
+
+            const dateObj = new Date();
+            const langLocale = language === "bn" ? "bn-BD" : "en-US";
+            const formattedTime =
+              dateObj.toLocaleTimeString(langLocale, {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              }) +
+              ", " +
+              dateObj.toLocaleDateString(langLocale, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+            setBackupTime(formattedTime);
+            setHasBackup(true);
+            
+            setSyncStatus("success");
+            alert("সফলভাবে লগইন হয়েছে এবং ক্লাউড ব্যাকআপ থেকে পূর্বের সকল ডাটা স্বয়ংক্রিয়ভাবে রিস্টোর করা হয়েছে!");
+            setTimeout(() => setSyncStatus("idle"), 3000);
+          }
+        }
+      } catch (err) {
+        console.error("Redirect handle error:", err);
+      }
+    };
+    checkRedirect();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      if (user && isOpen) {
+        checkForCloudBackup();
+      }
+    });
+    return () => unsubscribe();
+  }, [isOpen]);
+
+  const checkForCloudBackup = async () => {
+    setCheckingBackup(true);
+    try {
+      const backupMeta = await checkFirebaseBackup();
+      if (backupMeta) {
+        setHasBackup(true);
+        const dateObj = new Date(backupMeta.modifiedTime);
+        const langLocale = language === "bn" ? "bn-BD" : "en-US";
+        const formattedTime =
+          dateObj.toLocaleTimeString(langLocale, {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          }) +
+          ", " +
+          dateObj.toLocaleDateString(langLocale, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          });
+        setBackupTime(formattedTime);
+      } else {
+        setHasBackup(false);
+        setBackupTime(null);
+      }
+    } catch (err) {
+      console.error("Failed to check firebase backup:", err);
+    } finally {
+      setCheckingBackup(false);
+    }
+  };
+
+  const handleLogin = async () => {
+    setSyncStatus("syncing");
+    setErrorMessage(null);
+    try {
+      const user = await firebaseSignIn();
+      if (user) {
+        // Automatically check and restore backup if it exists
+        try {
+          const restoredData = await restoreFromFirebase();
+          if (restoredData) {
+            if (restoredData.sales) onRestoreSales(restoredData.sales);
+            if (restoredData.expenses) onRestoreExpenses(restoredData.expenses);
+            if (restoredData.storeInfo)
+              onRestoreStoreInfo(restoredData.storeInfo);
+
+            const dateObj = new Date();
+            const langLocale = language === "bn" ? "bn-BD" : "en-US";
+            const formattedTime =
+              dateObj.toLocaleTimeString(langLocale, {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              }) +
+              ", " +
+              dateObj.toLocaleDateString(langLocale, {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+            setBackupTime(formattedTime);
+            setHasBackup(true);
+
+            setSyncStatus("success");
+            alert(
+              "সফলভাবে লগইন হয়েছে এবং ক্লাউড ব্যাকআপ থেকে পূর্বের সকল ডাটা স্বয়ংক্রিয়ভাবে রিস্টোর করা হয়েছে!",
+            );
+          } else {
+            setSyncStatus("success");
+          }
+        } catch (restoreErr) {
+          console.error("Auto restore failed on login:", restoreErr);
+          setSyncStatus("success");
+        }
+
+        setTimeout(() => setSyncStatus("idle"), 3000);
+        await checkForCloudBackup();
+      }
+    } catch (err: any) {
+      console.error(err);
+      setSyncStatus("error");
+
+      let friendlyMessage = err.message || t("syncErrorGeneral");
+      const errCode = err.code || "";
+      const errMsg = err.message || "";
+
+      if (
+        errCode === "auth/operation-not-allowed" ||
+        errMsg.includes("operation-not-allowed")
+      ) {
+        friendlyMessage =
+          "আপনার ফায়ারবেস প্রজেক্টে Google Sign-In সচল করা নেই। অনুগ্রহ করে Firebase Console -> Authentication -> Sign-in method-এ গিয়ে Google চালু (Enable) করুন।";
+      } else if (
+        errCode === "auth/popup-blocked" ||
+        errMsg.includes("popup-blocked")
+      ) {
+        friendlyMessage =
+          "ব্রাউজার গুগল লগইন পপআপটি ব্লক করেছে! অনুগ্রহ করে আপনার ব্রাউজারের পপআপ ব্লকার বন্ধ করুন অথবা সরাসরি নতুন ট্যাবে অ্যাপটি খুলুন।";
+      } else if (
+        errCode === "auth/web-storage-unsupported" ||
+        errMsg.includes("web-storage-unsupported")
+      ) {
+        friendlyMessage =
+          "আইফ্রেমের ভেতরে ব্রাউজার কুকি ও স্টোরেজ ব্লক করার কারণে লগইন করা যাচ্ছে না। দয়া করে উপরের 'নতুন ট্যাবে অ্যাপ খুলুন' বাটনটি ব্যবহার করুন।";
+      }
+
+      setErrorMessage(friendlyMessage);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await firebaseSignOut();
+      setSyncStatus("idle");
+      setHasBackup(false);
+      setBackupTime(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    if (!currentUser) return;
+    setSyncStatus("syncing");
+    setErrorMessage(null);
+
+    try {
+      const result = await backupToFirebase(
+        sales,
+        expenses,
+        storeInfo,
+        language,
+      );
+      setSyncStatus("success");
+      setLastSync(result.lastSync);
+      await checkForCloudBackup();
+      setTimeout(() => setSyncStatus("idle"), 4000);
+    } catch (err: any) {
+      console.error(err);
+      setSyncStatus("error");
+      setErrorMessage(
+        err.message || "ফায়ারবেসে ব্যাকআপ আপলোড করতে ব্যর্থ হয়েছে!",
+      );
+    }
+  };
+
+  const handleRestoreNow = async () => {
+    if (!currentUser) return;
+
+    const confirmed = window.confirm(
+      "আপনি কি ফায়ারবেস ব্যাকআপ রিস্টোর করতে চান? এটি আপনার বর্তমান হিসাবের ডাটা সম্পূর্ণ প্রতিস্থাপন করবে।",
+    );
+    if (!confirmed) return;
+
+    setSyncStatus("syncing");
+    setErrorMessage(null);
+
+    try {
+      const restoredData = await restoreFromFirebase();
+      if (restoredData) {
+        if (restoredData.sales) onRestoreSales(restoredData.sales);
+        if (restoredData.expenses) onRestoreExpenses(restoredData.expenses);
+        if (restoredData.storeInfo) onRestoreStoreInfo(restoredData.storeInfo);
+
+        setSyncStatus("success");
+        alert("খাতার হিসাব সফলভাবে রিস্টোর করা হয়েছে!");
+        setTimeout(() => setSyncStatus("idle"), 4000);
+      } else {
+        throw new Error("কোনো ব্যাকআপ ফাইল পাওয়া যায়নি!");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setSyncStatus("error");
+      setErrorMessage(err.message || "রিস্টোর করতে ব্যর্থ হয়েছে!");
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            onClick={onClose}
+            className="absolute inset-0 bg-slate-900/60"
+          />
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col will-change-transform"
+          >
+            <div className="flex items-center justify-between p-6 border-b border-slate-50 bg-slate-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+                  <Cloud className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    ফায়ারবেস ব্যাকআপ
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    নিরাপদ ক্লাউড ব্যাকআপ সিঙ্ক
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-1.5 hover:bg-slate-200/50 rounded-lg transition-colors text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+              {errorMessage && (
+                <div className="p-3.5 bg-rose-50 border border-rose-100 rounded-2xl flex gap-2.5 text-rose-800 text-xs font-semibold">
+                  <AlertCircle className="w-4.5 h-4.5 text-rose-600 flex-shrink-0" />
+                  <p>{errorMessage}</p>
+                </div>
+              )}
+
+              {!currentUser ? (
+                <div className="text-center space-y-4 py-3">
+                  <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mx-auto text-orange-600">
+                    <CloudUpload className="w-8 h-8 animate-pulse" />
+                  </div>
+
+                  {isInIframe && (
+                    <div className="p-4 bg-indigo-50/80 border border-indigo-100 rounded-2xl text-left text-xs text-indigo-950 space-y-2.5 max-w-xs mx-auto shadow-xs">
+                      <p className="font-bold flex items-center gap-1.5 text-indigo-900">
+                        <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+                        আইফ্রেম ডিটেক্ট করা হয়েছে:
+                      </p>
+                      <p className="text-[11px] leading-relaxed text-indigo-800">
+                        ব্রাউজারের সিকিউরিটি পলিসির কারণে আইফ্রেমের ভেতর গুগল
+                        পপআপ লগইন ব্লক হয়। নিচের বাটনটিতে ক্লিক করে সরাসরি নতুন
+                        ট্যাবে অ্যাপটি খুলুন এবং লগইন সম্পন্ন করুন।
+                      </p>
+                      <button
+                        onClick={() =>
+                          window.open(window.location.href, "_blank")
+                        }
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] rounded-xl shadow-md shadow-indigo-600/10 hover:shadow-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        নতুন ট্যাবে অ্যাপ খুলুন
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 max-w-xs mx-auto">
+                    <h4 className="font-bold text-slate-800 text-sm">
+                      অ্যাকাউন্ট যুক্ত করুন
+                    </h4>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      গুগল ড্রাইভের সেশন বারবার শেষ হয়ে গেলে ফায়ারবেস ব্যাকআপ
+                      ব্যবহার করুন।
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={handleLogin}
+                    disabled={syncStatus === "syncing"}
+                    className="w-full max-w-xs mx-auto py-3 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {syncStatus === "syncing" ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>{t("saving")}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Google দিয়ে লগইন করুন</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="p-3.5 bg-amber-50/70 border border-amber-100 rounded-2xl text-left text-xs text-amber-900 space-y-1.5 max-w-xs mx-auto">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-amber-700" />
+                      লগইন কাজ না করলে করনীয়:
+                    </p>
+                    <p className="text-[10px] sm:text-[11px] leading-relaxed text-amber-800">
+                      আইফ্রেমের সীমাবদ্ধতার কারণে অনেক সময় ব্রাউজারে পপআপ ব্লক
+                      হয়। সমস্যা এড়াতে চাইলে আপনার
+                      <a
+                        href="https://console.firebase.google.com/project/zany-camera-nnzsc/authentication/settings"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-bold underline ml-1 text-amber-950 hover:text-amber-900"
+                      >
+                        Firebase Settings
+                      </a>
+                      -এ নিচের দুটি ডোমেইন <strong>Authorized Domains</strong>-এ
+                      যুক্ত করুন:
+                    </p>
+                    <div className="p-2 bg-white/80 border border-amber-100/50 rounded-xl font-mono text-[9px] text-slate-700 select-all space-y-1">
+                      <div className="truncate">
+                        ais-dev-mhhmjbreiv2zflqgoeem73-273317504244.asia-southeast1.run.app
+                      </div>
+                      <div className="truncate">
+                        ais-pre-mhhmjbreiv2zflqgoeem73-273317504244.asia-southeast1.run.app
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-base">
+                        {currentUser.email
+                          ? currentUser.email.charAt(0).toUpperCase()
+                          : "U"}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-800">
+                          অ্যাকাউন্ট সংযুক্ত
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono font-medium truncate max-w-[180px]">
+                          {currentUser.email || "সংযুক্ত অ্যাকাউন্ট"}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleLogout}
+                      className="text-[10px] font-bold text-rose-500 hover:text-rose-600 px-2.5 py-1.5 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <LogOut className="w-3 h-3" />
+                      <span>লগআউট</span>
+                    </button>
+                  </div>
+
+                  <div className="p-4 border border-orange-50 bg-orange-50/10 rounded-2xl space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500">
+                        সিঙ্কের অবস্থা
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        মোট {formatNumber(sales.length)} টি হিসাব এন্ট্রি
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-xs font-bold text-slate-700">
+                          বর্তমান ডিভাইস ব্যাকআপ
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                          সর্বশেষ আপলোড: {lastSync}
+                        </div>
+                      </div>
+
+                      {syncStatus === "syncing" ? (
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-orange-600">
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>সিঙ্ক হচ্ছে...</span>
+                        </div>
+                      ) : syncStatus === "success" ? (
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>সফল হয়েছে</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs font-bold text-slate-400">
+                          প্রস্তুত আছে
+                        </span>
+                      )}
+                    </div>
+
+                    {syncStatus === "syncing" && (
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: "100%" }}
+                          transition={{ duration: 1.8, ease: "easeInOut" }}
+                          className="h-full bg-orange-600"
+                        />
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 gap-2 pt-2">
+                      <button
+                        onClick={handleSyncNow}
+                        disabled={syncStatus === "syncing"}
+                        className="w-full py-2.5 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-300 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <CloudUpload className="w-4 h-4" />
+                        <span>ফায়ারবেসে ব্যাকআপ রাখুন</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border border-slate-100 bg-slate-50/50 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-700">
+                        ফায়ারবেস ব্যাকআপ রিস্টোর
+                      </h4>
+                      {checkingBackup ? (
+                        <span className="text-[10px] text-slate-400 animate-pulse">
+                          খোঁজা হচ্ছে...
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {hasBackup ? (
+                      <div className="space-y-3">
+                        <div className="p-3 bg-white border border-slate-100 rounded-xl flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-sm block w-fit mb-1">
+                              ব্যাকআপ পাওয়া গেছে
+                            </span>
+                            <span className="text-xs font-bold text-slate-800 block">
+                              {backupTime}
+                            </span>
+                          </div>
+                          <button
+                            onClick={handleRestoreNow}
+                            disabled={syncStatus === "syncing"}
+                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold text-[11px] rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <DownloadCloud className="w-3.5 h-3.5" />
+                            <span>রিস্টোর করুন</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 bg-white border border-slate-100 rounded-xl text-slate-400 text-xs font-medium">
+                        {checkingBackup
+                          ? "ক্লাউড ব্যাকআপ চেক করা হচ্ছে..."
+                          : "কোনো ব্যাকআপ পাওয়া যায়নি"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="p-3.5 bg-emerald-50/50 border border-emerald-100 rounded-2xl flex gap-2.5">
+                <Shield className="w-4.5 h-4.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="text-[11px] font-bold text-emerald-800 block">
+                    ডাটা সম্পূর্ণ সুরক্ষিত ও অটো-সিঙ্ক সক্রিয়
+                  </span>
+                  <span className="text-[10px] text-emerald-600 leading-relaxed font-medium block">
+                    আপনার যেকোনো নতুন হিসাব এন্ট্রি, খরচ বা পরিবর্তন করার সাথে সাথে ৩ সেকেন্ডের মধ্যে স্বয়ংক্রিয়ভাবে (Automatically) ফায়ারবেস ক্লাউডে ব্যাকআপ সেভ হয়ে যায়।
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-xs font-bold bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer text-slate-600"
+              >
+                {t("cancel")}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+};

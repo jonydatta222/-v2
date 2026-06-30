@@ -1,0 +1,48 @@
+{
+  "id": "com.hishabkhata.app",
+  "name": "ডিজিটাল হিসাব খাতা",
+  "short_name": "হিসাব খাতা",
+  "description": "একটি সহজ এবং অত্যন্ত কার্যকর বেচাকেনা ও বাকির হিসাব রাখার খাতা। নগদ ও বাকির হিসাব রাখুন সহজেই।",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#4f46e5",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait",
+  "categories": ["business", "finance"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "মোবাইল ভিউ - হিসাব খাতা"
+    },
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "ডেস্কটপ ভিউ - হিসাব খাতা"
+    }
+  ]
+}

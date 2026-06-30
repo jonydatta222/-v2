@@ -1,0 +1,21 @@
+{
+  "entities": {
+    "Backup": {
+      "title": "Backup",
+      "description": "User data backup",
+      "type": "object",
+      "properties": {
+        "sales": { "type": "array" },
+        "expenses": { "type": "array" },
+        "storeInfo": { "type": "object" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/backups/{userId}": {
+      "schema": "Backup",
+      "description": "User backup data"
+    }
+  }
+}

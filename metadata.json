@@ -1,0 +1,7 @@
+{
+  "name": "হিসাব খাতা - Hisab Khata",
+  "description": "একটি সহজ এবং অত্যন্ত কার্যকর বেচাকেনা ও বাকির হিসাব রাখার খাতা। নগদ ও বাকির হিসাব রাখুন সহজেই।",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
