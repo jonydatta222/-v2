@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ডিজিটাল হিসাব খাতা</string>
+    <string name="title_activity_main">ডিজিটাল হিসাব খাতা</string>
+    <string name="package_name">com.hishabkhata.app</string>
+    <string name="custom_url_scheme">com.hishabkhata.app</string>
+</resources>

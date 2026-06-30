@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, browserPopupRedirectResolver } from 'firebase/auth';
 
 const firebaseConfig = {
   projectId: "zany-camera-nnzsc",
@@ -13,7 +13,18 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const db = getFirestore(app, "ai-studio-hisabkhata-6b16f910-95e2-45b2-9ed5-6329a7bfe4cd");
-export const auth = getAuth(app);
+
+// Initialize auth with indexedDB local persistence explicitly to fix Capacitor logout issues
+let authInstance;
+try {
+  authInstance = initializeAuth(app, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    popupRedirectResolver: browserPopupRedirectResolver
+  });
+} catch (e) {
+  authInstance = getAuth(app); // fallback if already initialized
+}
+export const auth = authInstance;
 
 async function testConnection() {
   try {

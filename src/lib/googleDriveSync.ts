@@ -3,15 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { initializeApp, getApps, getApp } from "firebase/app";
 import {
-  getAuth,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
   User,
+  browserPopupRedirectResolver
 } from "firebase/auth";
-import firebaseConfig from "../../firebase-applet-config.json";
+import { auth } from "./firebase";
 import { SaleItem, StoreInfo, ExpenseItem } from "../types";
 
 interface SyncData {
@@ -21,9 +22,6 @@ interface SyncData {
   lastSync?: string;
   app?: string;
 }
-
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
 
 const provider = new GoogleAuthProvider();
 // Request Google Drive Scopes
@@ -71,7 +69,7 @@ export const googleSignIn = async (): Promise<{
 } | null> => {
   try {
     isSigningIn = true;
-    const result = await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
       throw new Error("Failed to get access token from Google Auth");
@@ -83,10 +81,37 @@ export const googleSignIn = async (): Promise<{
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error("Google Sign-In Error:", error);
+    if (
+      error.code === "auth/popup-blocked" ||
+      error.code === "auth/web-storage-unsupported" ||
+      error.message?.includes("popup")
+    ) {
+      console.log("Attempting redirect fallback...");
+      await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
+      return null;
+    }
     throw error;
   } finally {
     isSigningIn = false;
   }
+};
+
+export const googleHandleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth, browserPopupRedirectResolver);
+    if (result) {
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        cachedAccessToken = credential.accessToken;
+        localStorage.setItem("google_sync_logged_in", "true");
+        localStorage.setItem("google_sync_access_token", cachedAccessToken);
+        return { user: result.user, accessToken: cachedAccessToken };
+      }
+    }
+  } catch (error) {
+    console.error("Google Redirect Result Error:", error);
+  }
+  return null;
 };
 
 export const getAccessToken = (): string | null => {
@@ -114,13 +139,12 @@ export const checkGoogleDriveBackup = async (
   if (!accessToken) return null;
 
   try {
-    const res = await fetch("/api/gdrive/check", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILE_NAME}' and trashed=false&fields=files(id,name,modifiedTime)`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
       },
-      body: JSON.stringify({ accessToken }),
-    });
+    );
 
     if (!res.ok) {
       if (res.status === 401) {
@@ -130,10 +154,11 @@ export const checkGoogleDriveBackup = async (
       throw new Error("Failed to search Google Drive files");
     }
     const data = await res.json();
-    if (data) {
+    const files = data.files || [];
+    if (files.length > 0) {
       return {
-        fileId: data.fileId,
-        modifiedTime: data.modifiedTime,
+        fileId: files[0].id,
+        modifiedTime: files[0].modifiedTime,
       };
     }
     return null;
@@ -156,31 +181,96 @@ export const backupToGoogleDrive = async (
   if (!accessToken) throw new Error("গুগল অ্যাকাউন্ট সংযুক্ত নেই!");
 
   try {
-    const res = await fetch("/api/gdrive/backup", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    // 1. Search if backup file already exists
+    const checkResponse = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILE_NAME}' and trashed=false&fields=files(id,name)`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
       },
-      body: JSON.stringify({
-        accessToken,
-        sales,
-        expenses,
-        storeInfo,
-        language,
-      }),
-    });
+    );
 
-    if (!res.ok) {
-      if (res.status === 401) {
+    if (!checkResponse.ok) {
+      if (checkResponse.status === 401) {
         handleTokenExpiry();
         throw new Error("Google session expired. Please sign in again.");
       }
+      throw new Error("Failed to search Google Drive files");
+    }
+
+    const checkData = await checkResponse.json();
+    const files = checkData.files || [];
+    let fileId = files.length > 0 ? files[0].id : null;
+
+    // 2. If it does not exist, create the file metadata first
+    if (!fileId) {
+      const createRes = await fetch(
+        "https://www.googleapis.com/drive/v3/files",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: BACKUP_FILE_NAME,
+            mimeType: "application/json",
+          }),
+        },
+      );
+
+      if (!createRes.ok) {
+        throw new Error("Failed to create file metadata");
+      }
+
+      const createData = await createRes.json();
+      fileId = createData.id;
+    }
+
+    if (!fileId) {
+      throw new Error("Could not resolve Google Drive File ID");
+    }
+
+    // 3. Upload/Update the actual sales data content (as media)
+    const uploadData = {
+      sales,
+      expenses,
+      storeInfo,
+      lastSync: new Date().toISOString(),
+      app: "HishabKhata",
+    };
+
+    const uploadRes = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(uploadData),
+      },
+    );
+
+    if (!uploadRes.ok) {
       throw new Error("Failed to upload sales data to Google Drive");
     }
 
-    const data = await res.json();
-    localStorage.setItem("google_sync_last_time", data.lastSync);
-    return { lastSync: data.lastSync };
+    // Format current local time in localized representation
+    const locale = language === "bn" ? "bn-BD" : "en-US";
+    const nowStr =
+      new Date().toLocaleTimeString(locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }) +
+      ", " +
+      new Date().toLocaleDateString(locale, {
+        month: "short",
+        day: "numeric",
+      });
+
+    localStorage.setItem("google_sync_last_time", nowStr);
+    return { lastSync: nowStr };
   } catch (error: any) {
     if (error.message !== "Google session expired. Please sign in again.") {
       console.error("Backup to Google Drive failed:", error);
@@ -195,22 +285,43 @@ export const restoreFromGoogleDrive = async (): Promise<SyncData | null> => {
   if (!accessToken) throw new Error("গুগল অ্যাকাউন্ট সংযুক্ত নেই!");
 
   try {
-    const res = await fetch("/api/gdrive/restore", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    // 1. Search if backup file already exists
+    const checkResponse = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='${BACKUP_FILE_NAME}' and trashed=false&fields=files(id,name)`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
       },
-      body: JSON.stringify({ accessToken }),
-    });
+    );
 
-    if (!res.ok) {
-      if (res.status === 401) {
+    if (!checkResponse.ok) {
+      if (checkResponse.status === 401) {
         handleTokenExpiry();
         throw new Error("Google session expired. Please sign in again.");
       }
+      throw new Error("Failed to search Google Drive files");
+    }
+
+    const checkData = await checkResponse.json();
+    const files = checkData.files || [];
+    const fileId = files.length > 0 ? files[0].id : null;
+
+    if (!fileId) {
+      throw new Error("গুগল ড্রাইভে কোনো ব্যাকআপ ফাইল পাওয়া যায়নি!");
+    }
+
+    // 2. Download contents
+    const getFileRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+
+    if (!getFileRes.ok) {
       throw new Error("Failed to download backup content");
     }
-    const backupData = await res.json();
+
+    const backupData = await getFileRes.json();
 
     if (backupData && Array.isArray(backupData.sales)) {
       return {
@@ -218,8 +329,13 @@ export const restoreFromGoogleDrive = async (): Promise<SyncData | null> => {
         expenses: backupData.expenses || [],
         storeInfo: backupData.storeInfo || null,
       };
+    } else if (Array.isArray(backupData)) {
+       return {
+        sales: backupData as any,
+        expenses: [],
+        storeInfo: null,
+      };
     }
-
     return null;
   } catch (error: any) {
     if (error.message !== "Google session expired. Please sign in again.") {

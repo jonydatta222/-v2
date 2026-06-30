@@ -4,6 +4,7 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signOut,
+  browserPopupRedirectResolver,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase";
@@ -65,7 +66,7 @@ function handleFirestoreError(
 
 export const firebaseSignIn = async () => {
   try {
-    const result = await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
     return result.user;
   } catch (error: any) {
     console.error("Firebase SignIn Error", error);
@@ -76,7 +77,7 @@ export const firebaseSignIn = async () => {
       error.message?.includes("popup")
     ) {
       console.log("Attempting redirect fallback...");
-      await signInWithRedirect(auth, provider);
+      await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
       return null;
     }
     throw error;
@@ -85,7 +86,7 @@ export const firebaseSignIn = async () => {
 
 export const handleRedirectResult = async () => {
   try {
-    const result = await getRedirectResult(auth);
+    const result = await getRedirectResult(auth, browserPopupRedirectResolver);
     return result?.user || null;
   } catch (error) {
     console.error("Firebase Redirect Result Error", error);

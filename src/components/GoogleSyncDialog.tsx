@@ -28,7 +28,8 @@ import {
   backupToGoogleDrive, 
   restoreFromGoogleDrive, 
   checkGoogleDriveBackup,
-  getAccessToken
+  getAccessToken,
+  googleHandleRedirectResult
 } from '../lib/googleDriveSync';
 
 interface GoogleSyncDialogProps {
@@ -65,6 +66,22 @@ export const GoogleSyncDialog: React.FC<GoogleSyncDialogProps> = ({
   const [lastSync, setLastSync] = useState(() => {
     return localStorage.getItem('google_sync_last_time') || t('notSynced');
   });
+
+  // Handle redirect result automatically
+  useEffect(() => {
+    const handleRedirect = async () => {
+      try {
+        const result = await googleHandleRedirectResult();
+        if (result?.accessToken) {
+          setIsLoggedIn(true);
+          checkForCloudBackup(result.accessToken);
+        }
+      } catch (err) {
+        console.error("Redirect handler error:", err);
+      }
+    };
+    handleRedirect();
+  }, []);
 
   // Watch for Auth changes on mount and whenever dialog opens
   useEffect(() => {
