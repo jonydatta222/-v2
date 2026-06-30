@@ -10,7 +10,6 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   User,
-  browserPopupRedirectResolver
 } from "firebase/auth";
 import { auth } from "./firebase";
 import { SaleItem, StoreInfo, ExpenseItem } from "../types";
@@ -69,7 +68,7 @@ export const googleSignIn = async (): Promise<{
 } | null> => {
   try {
     isSigningIn = true;
-    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+    const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
       throw new Error("Failed to get access token from Google Auth");
@@ -87,7 +86,7 @@ export const googleSignIn = async (): Promise<{
       error.message?.includes("popup")
     ) {
       console.log("Attempting redirect fallback...");
-      await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
+      await signInWithRedirect(auth, provider);
       return null;
     }
     throw error;
@@ -98,7 +97,7 @@ export const googleSignIn = async (): Promise<{
 
 export const googleHandleRedirectResult = async () => {
   try {
-    const result = await getRedirectResult(auth, browserPopupRedirectResolver);
+    const result = await getRedirectResult(auth);
     if (result) {
       const credential = GoogleAuthProvider.credentialFromResult(result);
       if (credential?.accessToken) {

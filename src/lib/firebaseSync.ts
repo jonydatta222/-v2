@@ -4,7 +4,6 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signOut,
-  browserPopupRedirectResolver,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase";
@@ -66,7 +65,7 @@ function handleFirestoreError(
 
 export const firebaseSignIn = async () => {
   try {
-    const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+    const result = await signInWithPopup(auth, provider);
     return result.user;
   } catch (error: any) {
     console.error("Firebase SignIn Error", error);
@@ -77,7 +76,7 @@ export const firebaseSignIn = async () => {
       error.message?.includes("popup")
     ) {
       console.log("Attempting redirect fallback...");
-      await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
+      await signInWithRedirect(auth, provider);
       return null;
     }
     throw error;
@@ -86,7 +85,7 @@ export const firebaseSignIn = async () => {
 
 export const handleRedirectResult = async () => {
   try {
-    const result = await getRedirectResult(auth, browserPopupRedirectResolver);
+    const result = await getRedirectResult(auth);
     return result?.user || null;
   } catch (error) {
     console.error("Firebase Redirect Result Error", error);
@@ -116,11 +115,15 @@ export const backupToFirebase = async (
   const backupRef = doc(db, "backups", userId);
 
   try {
+    const cleanSales = JSON.parse(JSON.stringify(sales));
+    const cleanExpenses = JSON.parse(JSON.stringify(expenses));
+    const cleanStoreInfo = storeInfo ? JSON.parse(JSON.stringify(storeInfo)) : null;
+
     await setDoc(backupRef, {
-      sales,
-      expenses,
-      storeInfo,
-      updatedAt: serverTimestamp(),
+      sales: cleanSales,
+      expenses: cleanExpenses,
+      storeInfo: cleanStoreInfo,
+      updatedAt: new Date().toISOString(),
     });
 
     const locale = language === "bn" ? "bn-BD" : "en-US";
@@ -152,7 +155,16 @@ export const checkFirebaseBackup = async () => {
     const snap = await getDoc(backupRef);
     if (snap.exists()) {
       const data = snap.data();
-      const updatedDate = data.updatedAt ? data.updatedAt.toDate() : new Date();
+      let updatedDate: Date;
+      if (data.updatedAt) {
+        if (typeof data.updatedAt.toDate === "function") {
+          updatedDate = data.updatedAt.toDate();
+        } else {
+          updatedDate = new Date(data.updatedAt);
+        }
+      } else {
+        updatedDate = new Date();
+      }
       return { modifiedTime: updatedDate.toISOString() };
     }
     return null;
