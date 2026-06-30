@@ -236,6 +236,26 @@ async function startServer() {
     }
   });
 
+  // Serving Digital Asset Links (.well-known/assetlinks.json) dynamically for TWA/APK Fullscreen Mode
+  app.get("/.well-known/assetlinks.json", (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    const fingerprint = process.env.ANDROID_SHA256_FINGERPRINT || "A5:66:4E:EB:06:E3:91:AA:F9:BE:48:03:00:23:D0:13:15:A3:AC:5A:C6:FD:D8:4E:FD:D1:3A:6A:A8:8D:84:5D";
+    const fingerprints = fingerprint.split(",").map(f => f.trim());
+    
+    res.json([
+      {
+        "relation": [
+          "delegate_permission/common.handle_all_urls"
+        ],
+        "target": {
+          "namespace": "android_app",
+          "package_name": "com.hisabkhata.app",
+          "sha256_cert_fingerprints": fingerprints
+        }
+      }
+    ]);
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -245,7 +265,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, { dotfiles: "allow" }));
     app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
