@@ -249,7 +249,7 @@ async function startServer() {
         ],
         "target": {
           "namespace": "android_app",
-          "package_name": "com.hisabkhata.app",
+          "package_name": "app.run.asia_southeast1.ais_pre_mhhmjbreiv2zflqgoeem73_273317504244.twa",
           "sha256_cert_fingerprints": fingerprints
         }
       }
