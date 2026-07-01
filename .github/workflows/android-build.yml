@@ -37,37 +37,28 @@ jobs:
     - name: Build Web App
       run: npm run build
       
+    - name: Generate clean and valid Gradle Wrapper
+      run: |
+        echo "=== Creating a temporary directory ==="
+        mkdir -p /tmp/gradle-wrapper-temp
+        cd /tmp/gradle-wrapper-temp
+        
+        echo "=== Generating clean Gradle 8.14.3 wrapper ==="
+        gradle wrapper --gradle-version 8.14.3 --distribution-type all
+        
+        echo "=== Copying clean wrapper files to project ==="
+        cd $GITHUB_WORKSPACE
+        mkdir -p android/gradle/wrapper
+        cp /tmp/gradle-wrapper-temp/gradlew android/gradlew
+        cp /tmp/gradle-wrapper-temp/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/gradle-wrapper.jar
+        cp /tmp/gradle-wrapper-temp/gradle/wrapper/gradle-wrapper.properties android/gradle/wrapper/gradle-wrapper.properties
+        
+        echo "=== Verifying the generated files ==="
+        ls -la android/gradlew
+        ls -la android/gradle/wrapper/
+
     - name: Make gradlew executable
       run: chmod +x android/gradlew
-
-    - name: Ensure Gradle Wrapper is valid and correct
-      run: |
-        mkdir -p android/gradle/wrapper
-        JAR_PATH="android/gradle/wrapper/gradle-wrapper.jar"
-        
-        # Function to check if a jar is valid zip/jar file
-        is_valid_jar() {
-          if [ -f "$JAR_PATH" ] && unzip -t "$JAR_PATH" > /dev/null 2>&1; then
-            return 0
-          fi
-          return 1
-        }
-
-        echo "=== Downloading official gradle-wrapper.jar ==="
-        curl -Lo "$JAR_PATH" https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar
-        
-        if is_valid_jar; then
-          echo "Successfully downloaded valid gradle-wrapper.jar."
-        else
-          echo "Failed to download gradle-wrapper.jar! Trying alternative URL..."
-          curl -Lo "$JAR_PATH" https://raw.githubusercontent.com/gradle/gradle/v8.8.0/gradle/wrapper/gradle-wrapper.jar
-          if is_valid_jar; then
-            echo "Successfully downloaded valid gradle-wrapper.jar from backup."
-          else
-            echo "Error: Failed to obtain a valid gradle-wrapper.jar!"
-            exit 1
-          fi
-        fi
 
     - name: Sync Capacitor
       run: |
