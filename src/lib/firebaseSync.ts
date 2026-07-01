@@ -4,6 +4,9 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signOut,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "./firebase";
@@ -98,6 +101,35 @@ export const firebaseSignOut = async () => {
     await signOut(auth);
   } catch (error) {
     console.error("Firebase SignOut Error", error);
+    throw error;
+  }
+};
+
+export const firebaseSignInWithEmail = async (email: string, password: string) => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    return result.user;
+  } catch (error: any) {
+    console.error("Firebase Email SignIn Error", error);
+    throw error;
+  }
+};
+
+export const firebaseSignUpWithEmail = async (email: string, password: string) => {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    return result.user;
+  } catch (error: any) {
+    console.error("Firebase Email SignUp Error", error);
+    throw error;
+  }
+};
+
+export const firebaseResetPassword = async (email: string) => {
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (error: any) {
+    console.error("Firebase Reset Password Error", error);
     throw error;
   }
 };
