@@ -327,6 +327,8 @@ export const FirebaseSyncDialog: React.FC<FirebaseSyncDialogProps> = ({
 
       if (errCode === "auth/invalid-credential" || errMsg.includes("invalid-credential") || errMsg.includes("wrong-password")) {
         friendlyMessage = "ভুল ইমেইল অথবা পাসওয়ার্ড দিয়েছেন!";
+      } else if (errCode === "auth/operation-not-allowed" || errMsg.includes("operation-not-allowed")) {
+        friendlyMessage = "আপনার ফায়ারবেস প্রজেক্টে ইমেইল/পাসওয়ার্ড (Email/Password) লগইন সচল করা নেই। অনুগ্রহ করে Firebase Console-এ গিয়ে 'Email/Password' সাইন-ইন মেথডটি চালু (Enable) করুন। (Firebase Console -> Authentication -> Sign-in method -> Add new provider -> Email/Password -> Enable -> Save)";
       } else if (errCode === "auth/email-already-in-use" || errMsg.includes("email-already-in-use")) {
         friendlyMessage = "এই ইমেইল দিয়ে ইতিপূর্বে অ্যাকাউন্ট খোলা হয়েছে!";
       } else if (errCode === "auth/weak-password" || errMsg.includes("weak-password")) {
