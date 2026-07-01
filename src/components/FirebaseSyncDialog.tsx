@@ -16,6 +16,8 @@ import {
   Eye,
   EyeOff,
   UserCheck,
+  Upload,
+  FileSpreadsheet,
 } from "lucide-react";
 import { SaleItem, StoreInfo } from "../types";
 import { useLanguage } from "../LanguageContext";
@@ -405,6 +407,64 @@ export const FirebaseSyncDialog: React.FC<FirebaseSyncDialogProps> = ({
     }
   };
 
+  const handleLocalExport = () => {
+    try {
+      const backupData = {
+        sales,
+        expenses,
+        storeInfo,
+        version: "1.0",
+        exportedAt: new Date().toISOString()
+      };
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+      const downloadAnchor = document.createElement("a");
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute(
+        "download",
+        `hisab_khata_offline_backup_${new Date().toISOString().slice(0, 10)}.json`
+      );
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      alert("সফলভাবে লোকাল অফলাইন ব্যাকআপ ফাইলটি আপনার ডিভাইসে ডাউনলোড হয়েছে!");
+    } catch (err: any) {
+      console.error(err);
+      alert("অফলাইন ব্যাকআপ তৈরি করতে সমস্যা হয়েছে!");
+    }
+  };
+
+  const handleLocalImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    fileReader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target?.result as string);
+        if (parsed && (Array.isArray(parsed.sales) || Array.isArray(parsed.expenses))) {
+          const confirmed = window.confirm(
+            "আপনি কি এই ব্যাকআপ ফাইল থেকে সকল ডাটা রিস্টোর করতে চান? এটি আপনার বর্তমান ফোনের সব হিসাব সম্পূর্ণ প্রতিস্থাপন (Overwrite) করবে এবং বর্তমান ডাটা মুছে যাবে!"
+          );
+          if (!confirmed) return;
+
+          if (parsed.sales) onRestoreSales(parsed.sales);
+          if (parsed.expenses) onRestoreExpenses(parsed.expenses);
+          if (parsed.storeInfo) onRestoreStoreInfo(parsed.storeInfo);
+
+          alert("সফলভাবে অফলাইন ফাইল থেকে সকল খাতার হিসাব রিস্টোর করা হয়েছে!");
+          onClose();
+        } else {
+          alert("ভুল ফাইল ফরম্যাট! অনুগ্রহ করে সঠিক হিসাব খাতা অফলাইন ব্যাকআপ ফাইল (.json) সিলেক্ট করুন।");
+        }
+      } catch (err) {
+        console.error(err);
+        alert("ফাইলটি পড়তে সমস্যা হয়েছে! ব্যাকআপ ফাইলটি সঠিক কিনা যাচাই করুন।");
+      }
+    };
+    fileReader.readAsText(file);
+    event.target.value = "";
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -703,6 +763,48 @@ export const FirebaseSyncDialog: React.FC<FirebaseSyncDialogProps> = ({
                       </div>
                     </div>
                   )}
+
+                  {/* Local Offline Backup Card */}
+                  <div className="p-4 bg-slate-50 border border-slate-200/60 rounded-2xl space-y-3 mt-4 text-left">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <FileSpreadsheet className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800">
+                          ১০০% অফলাইন ব্যাকআপ (সহজ ও নির্ভরযোগ্য)
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-medium">
+                          কোনো লগইন বা ইন্টারনেট লাগবে না
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
+                      আপনার ফোনের মেমরিতে একটি <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-mono text-slate-600">.json</code> ফাইল হিসেবে পুরো খাতার হিসাব ডাউনলোড করে নিরাপদে সংরক্ষণ করুন। পরে যেকোনো ফোনে বা নতুন অ্যাপে এই ফাইলটি সিলেক্ট করে সব হিসাব সেকেন্ডে রিস্টোর করতে পারবেন।
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={handleLocalExport}
+                        className="py-2.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[10px] rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <DownloadCloud className="w-3.5 h-3.5 text-slate-500" />
+                        <span>ফাইল ডাউনলোড করুন</span>
+                      </button>
+
+                      <label className="py-2.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[10px] rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs text-center">
+                        <Upload className="w-3.5 h-3.5 text-slate-500" />
+                        <span>ফাইল থেকে রিস্টোর</span>
+                        <input
+                          type="file"
+                          accept=".json"
+                          onChange={handleLocalImport}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -831,6 +933,48 @@ export const FirebaseSyncDialog: React.FC<FirebaseSyncDialogProps> = ({
                           : "কোনো ব্যাকআপ পাওয়া যায়নি"}
                       </div>
                     )}
+                  </div>
+
+                  {/* Local Offline Backup Card (Always accessible alternative) */}
+                  <div className="p-4 bg-slate-50 border border-slate-200/60 rounded-2xl space-y-3 text-left">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <FileSpreadsheet className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800">
+                          ১০০% অফলাইন ব্যাকআপ (সহজ ও নির্ভরযোগ্য)
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-medium">
+                          কোনো লগইন বা ইন্টারনেট লাগবে না
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
+                      আপনার ফোনের মেমরিতে একটি <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-mono text-slate-600">.json</code> ফাইল হিসেবে পুরো খাতার হিসাব ডাউনলোড করে নিরাপদে সংরক্ষণ করুন। পরে যেকোনো ফোনে বা নতুন অ্যাপে এই ফাইলটি সিলেক্ট করে সব হিসাব সেকেন্ডে রিস্টোর করতে পারবেন।
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={handleLocalExport}
+                        className="py-2.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[10px] rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <DownloadCloud className="w-3.5 h-3.5 text-slate-500" />
+                        <span>ফাইল ডাউনলোড করুন</span>
+                      </button>
+
+                      <label className="py-2.5 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-[10px] rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs text-center">
+                        <Upload className="w-3.5 h-3.5 text-slate-500" />
+                        <span>ফাইল থেকে রিস্টোর</span>
+                        <input
+                          type="file"
+                          accept=".json"
+                          onChange={handleLocalImport}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
               )}
