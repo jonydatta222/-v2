@@ -49,7 +49,7 @@ jobs:
         echo "=== Checking built assets ==="
         ls -la dist/
         echo "=== Running Capacitor Sync ==="
-        npx cap sync android --verbose
+        npx cap sync
 
     - name: Build Android APK
       working-directory: ./android
