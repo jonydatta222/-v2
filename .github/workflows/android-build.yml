@@ -44,12 +44,22 @@ jobs:
     - name: Make gradlew executable
       run: chmod +x android/gradlew
 
+    - name: Ensure Gradle Wrapper Jar exists
+      run: |
+        if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
+          echo "gradle-wrapper.jar is missing! Recovering by downloading official gradle-wrapper.jar..."
+          mkdir -p android/gradle/wrapper
+          curl -Lo android/gradle/wrapper/gradle-wrapper.jar https://github.com/gradle/gradle/raw/v8.14.3/gradle/wrapper/gradle-wrapper.jar
+        else
+          echo "gradle-wrapper.jar is present."
+        fi
+
     - name: Sync Capacitor
       run: |
         echo "=== Checking built assets ==="
         ls -la dist/
         echo "=== Running Capacitor Sync ==="
-        npx cap sync android --verbose
+        npx cap sync android
 
     - name: Build Android APK
       working-directory: ./android
