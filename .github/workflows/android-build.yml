@@ -20,17 +20,23 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
-    - name: Setup Java
+    - name: Setup Java 17 (Required for legacy dependencies)
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
         java-version: '17'
 
+    - name: Setup Java 21 (Required for modern Gradle & Android SDK)
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '21'
+
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
     - name: Install dependencies
-      run: npm ci
+      run: npm ci --include=dev
 
     - name: Build Web App
       run: npm run build
@@ -39,7 +45,11 @@ jobs:
       run: chmod +x android/gradlew
 
     - name: Sync Capacitor
-      run: npx cap sync android
+      run: |
+        echo "=== Checking built assets ==="
+        ls -la dist/
+        echo "=== Running Capacitor Sync ==="
+        npx cap sync android --verbose
 
     - name: Build Android APK
       working-directory: ./android
