@@ -40,11 +40,34 @@ jobs:
     - name: Make gradlew executable
       run: chmod +x android/gradlew
 
-    - name: Ensure Gradle Wrapper is valid and generated correctly
+    - name: Ensure Gradle Wrapper is valid and correct
       run: |
-        cd android
-        echo "=== Generating Gradle Wrapper using pre-installed gradle ==="
-        gradle wrapper --gradle-version 8.14.3
+        mkdir -p android/gradle/wrapper
+        JAR_PATH="android/gradle/wrapper/gradle-wrapper.jar"
+        
+        # Function to check if a jar is valid zip/jar file
+        is_valid_jar() {
+          if [ -f "$JAR_PATH" ] && unzip -t "$JAR_PATH" > /dev/null 2>&1; then
+            return 0
+          fi
+          return 1
+        }
+
+        echo "=== Downloading official gradle-wrapper.jar ==="
+        curl -Lo "$JAR_PATH" https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar
+        
+        if is_valid_jar; then
+          echo "Successfully downloaded valid gradle-wrapper.jar."
+        else
+          echo "Failed to download gradle-wrapper.jar! Trying alternative URL..."
+          curl -Lo "$JAR_PATH" https://raw.githubusercontent.com/gradle/gradle/v8.8.0/gradle/wrapper/gradle-wrapper.jar
+          if is_valid_jar; then
+            echo "Successfully downloaded valid gradle-wrapper.jar from backup."
+          else
+            echo "Error: Failed to obtain a valid gradle-wrapper.jar!"
+            exit 1
+          fi
+        fi
 
     - name: Sync Capacitor
       run: |
