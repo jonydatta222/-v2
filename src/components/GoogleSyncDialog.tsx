@@ -31,7 +31,8 @@ import {
   restoreFromGoogleDrive, 
   checkGoogleDriveBackup,
   getAccessToken,
-  googleHandleRedirectResult
+  googleHandleRedirectResult,
+  setAccessToken
 } from '../lib/googleDriveSync';
 
 interface GoogleSyncDialogProps {
@@ -392,7 +393,7 @@ export const GoogleSyncDialog: React.FC<GoogleSyncDialogProps> = ({
                     </div>
 
                     <p className="text-[10px] leading-relaxed text-slate-500 font-medium">
-                      আপনার ফোনের মেমরিতে একটি <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-mono text-slate-600">.json</code> ফাইল হিসেবে পুরো খাতার হিসাব ডাউনলোড করে নিরাপদে সংরক্ষণ করুন। পরে যেকোনো ফোনে বা নতুন অ্যাপে এই ফাইলটি সিলেক্ট করে সব হিসাব সেকেন্ডে রিস্টোর করতে পারবেন।
+                      Your files will download as a <code className="bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-mono text-slate-600">.json</code> file. You can easily export or import this file at any time.
                     </p>
 
                     <div className="grid grid-cols-2 gap-2 pt-1">
@@ -414,6 +415,44 @@ export const GoogleSyncDialog: React.FC<GoogleSyncDialogProps> = ({
                           className="hidden"
                         />
                       </label>
+                    </div>
+                  </div>
+
+                  {/* Token Paste Section for Mobile APK Users */}
+                  <div className="p-4 bg-amber-50/40 border border-amber-200/60 rounded-2xl space-y-2.5 text-left mt-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs">🔑</span>
+                      <h4 className="text-xs font-bold text-amber-900">
+                        মোবাইল APK-র জন্য বিকল্প সাইন-ইন
+                      </h4>
+                    </div>
+                    <p className="text-[10px] leading-relaxed text-amber-800/80 font-medium">
+                      যদি সরাসরি সাইন-ইন বাটন কাজ না করে (গুগলের সিকিউরিটি ব্লকের কারণে), তবে যেকোনো ব্রাউজারে আমাদের ওয়েব লিংকটি ওপেন করে ড্রাইভ সাইন-ইন করুন এবং সেখান থেকে সিঙ্ক টোকেনটি কপি করে এনে নিচের বক্সে পেস্ট করুন।
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="কপি করা সিঙ্ক টোকেনটি এখানে পেস্ট করুন..."
+                        className="flex-1 px-3 py-2 bg-white border border-amber-200 rounded-xl text-[11px] focus:outline-none focus:ring-1 focus:ring-amber-400 text-slate-700 font-mono"
+                        id="apkSyncTokenInput"
+                      />
+                      <button
+                        onClick={async () => {
+                          const input = document.getElementById("apkSyncTokenInput") as HTMLInputElement;
+                          const token = input?.value?.trim();
+                          if (token) {
+                            setAccessToken(token, "mobile_user@hisabkhata.app");
+                            setIsLoggedIn(true);
+                            await checkForCloudBackup(token);
+                            alert("সফলভাবে ম্যানুয়াল টোকেন দিয়ে ড্রাইভ কানেক্ট করা হয়েছে!");
+                          } else {
+                            alert("অনুগ্রহ করে একটি সঠিক সিঙ্ক টোকেন পেস্ট করুন।");
+                          }
+                        }}
+                        className="px-3.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] rounded-xl transition-all cursor-pointer shadow-2xs shrink-0"
+                      >
+                        টোকেন দিয়ে সাইন-ইন
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -440,6 +479,28 @@ export const GoogleSyncDialog: React.FC<GoogleSyncDialogProps> = ({
                       <LogOut className="w-3 h-3" />
                       <span>{t('signOutBtn')}</span>
                     </button>
+                  </div>
+
+                  {/* Copy Access Token Option */}
+                  <div className="p-4 bg-slate-50 border border-slate-200/60 rounded-2xl space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700">মোবাইল অ্যাপে ব্যবহারের টোকেন</span>
+                      <button
+                        onClick={() => {
+                          const token = getAccessToken();
+                          if (token) {
+                            navigator.clipboard.writeText(token);
+                            alert("সিঙ্ক টোকেন কপি করা হয়েছে! এটি মোবাইল অ্যাপের 'টোকেন পেস্ট করুন' বক্সে পেস্ট করুন।");
+                          }
+                        }}
+                        className="text-[10px] font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                      >
+                        কপি করুন
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
+                      * গুগলের সিকিউরিটি ব্লকের কারণে মোবাইলের APK তে সরাসরি সাইন-ইন না হলে, ব্রাউজার দিয়ে এখানে লগইন করে উপরের কোডটি কপি করে আপনার মোবাইলের APK তে পেস্ট করে নিন।
+                    </p>
                   </div>
 
                   {/* Sync Action & status */}

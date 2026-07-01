@@ -18,6 +18,7 @@ import {
   UserCheck,
   Upload,
   FileSpreadsheet,
+  Settings,
 } from "lucide-react";
 import { SaleItem, StoreInfo } from "../types";
 import { useLanguage } from "../LanguageContext";
@@ -77,6 +78,53 @@ export const FirebaseSyncDialog: React.FC<FirebaseSyncDialogProps> = ({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  // Custom Firebase configuration states
+  const [showCustomConfig, setShowCustomConfig] = useState(false);
+  const [customApiKey, setCustomApiKey] = useState("");
+  const [customProjectId, setCustomProjectId] = useState("");
+  const [customAppId, setCustomAppId] = useState("");
+  const [customDbId, setCustomDbId] = useState("(default)");
+  const [isUsingCustom, setIsUsingCustom] = useState(false);
+
+  useEffect(() => {
+    try {
+      const customConfigStr = localStorage.getItem("custom_firebase_config");
+      if (customConfigStr) {
+        const customConfig = JSON.parse(customConfigStr);
+        setCustomApiKey(customConfig.apiKey || "");
+        setCustomProjectId(customConfig.projectId || "");
+        setCustomAppId(customConfig.appId || "");
+        setCustomDbId(customConfig.databaseId || "(default)");
+        setIsUsingCustom(true);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const handleSaveCustomConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customApiKey.trim() || !customProjectId.trim() || !customAppId.trim()) {
+      alert("দয়া করে API Key, Project ID এবং App ID পূরণ করুন!");
+      return;
+    }
+    const config = {
+      apiKey: customApiKey.trim(),
+      projectId: customProjectId.trim(),
+      appId: customAppId.trim(),
+      databaseId: customDbId.trim() || "(default)",
+    };
+    localStorage.setItem("custom_firebase_config", JSON.stringify(config));
+    alert("আপনার কাস্টম ফায়ারবেস কনফিগারেশন সফলভাবে সেভ করা হয়েছে! অ্যাপ্লিকেশনটি রিলোড করা হচ্ছে...");
+    window.location.reload();
+  };
+
+  const handleResetCustomConfig = () => {
+    localStorage.removeItem("custom_firebase_config");
+    alert("কনফিগারেশন রিসেট করা হয়েছে এবং ডিফল্ট ফায়ারবেস প্রজেক্টে রিলোড করা হচ্ছে...");
+    window.location.reload();
+  };
 
   useEffect(() => {
     try {
@@ -535,6 +583,117 @@ export const FirebaseSyncDialog: React.FC<FirebaseSyncDialogProps> = ({
                       </p>
                     </div>
                   )}
+
+                  {/* Custom Firebase Setup Card for APK Releases */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 text-left max-w-xs mx-auto">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center">
+                          <Settings className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-800">
+                            নিজস্ব ফায়ারবেস সেটআপ
+                          </h4>
+                          <p className="text-[9px] text-slate-400 font-medium">
+                            APK-তে ডেটা অনলাইন ব্যাকআপের জন্য
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomConfig(!showCustomConfig)}
+                        className="text-[10px] font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
+                      >
+                        {showCustomConfig ? "লুকান" : "সেটআপ করুন"}
+                      </button>
+                    </div>
+
+                    {isUsingCustom && !showCustomConfig && (
+                      <div className="p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-between text-[10px] text-emerald-800 font-medium leading-normal">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+                          <span className="truncate">নিজস্ব ফায়ারবেস সক্রিয় ({customProjectId})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResetCustomConfig}
+                          className="text-[10px] font-bold text-rose-500 hover:underline cursor-pointer flex-shrink-0 ml-1"
+                        >
+                          ডিফল্ট করুন
+                        </button>
+                      </div>
+                    )}
+
+                    {showCustomConfig && (
+                      <form onSubmit={handleSaveCustomConfig} className="space-y-3 pt-2.5 border-t border-slate-200/60">
+                        <p className="text-[10px] text-slate-500 leading-normal font-medium">
+                          গুগল সিকিউরিটি এবং লগইন সচল করার জন্য আপনার নিজস্ব ফায়ারবেস প্রজেক্ট তৈরি করে তথ্যগুলো এখানে বসান। ফায়ারবেস কনসোলে Email/Password সাইন-ইন সচল করুন।
+                        </p>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 block">API Key (অবশ্যক)</label>
+                          <input
+                            type="text"
+                            required
+                            value={customApiKey}
+                            onChange={(e) => setCustomApiKey(e.target.value)}
+                            placeholder="AIzaSy..."
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-slate-900 outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 block">Project ID (অবশ্যক)</label>
+                          <input
+                            type="text"
+                            required
+                            value={customProjectId}
+                            onChange={(e) => setCustomProjectId(e.target.value)}
+                            placeholder="my-project-123"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-slate-900 outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 block">App ID (অবশ্যক)</label>
+                          <input
+                            type="text"
+                            required
+                            value={customAppId}
+                            onChange={(e) => setCustomAppId(e.target.value)}
+                            placeholder="1:123456:web:abcd..."
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-slate-900 outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 block">Database ID (ঐচ্ছিক)</label>
+                          <input
+                            type="text"
+                            value={customDbId}
+                            onChange={(e) => setCustomDbId(e.target.value)}
+                            placeholder="(default)"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-1 focus:ring-slate-900 outline-none"
+                          />
+                        </div>
+
+                        <div className="flex gap-2 pt-1.5">
+                          <button
+                            type="submit"
+                            className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] rounded-xl transition-colors cursor-pointer"
+                          >
+                            সংরক্ষণ ও রিলোড
+                          </button>
+                          {isUsingCustom && (
+                            <button
+                              type="button"
+                              onClick={handleResetCustomConfig}
+                              className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-[10px] rounded-xl transition-colors cursor-pointer"
+                            >
+                              রিসেট
+                            </button>
+                          )}
+                        </div>
+                      </form>
+                    )}
+                  </div>
 
                   {/* Auth Method Switcher (Only on Web/IFrame) */}
                   {!isAndroidAPK && (

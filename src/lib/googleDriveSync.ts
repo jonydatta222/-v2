@@ -117,6 +117,15 @@ export const getAccessToken = (): string | null => {
   return cachedAccessToken;
 };
 
+export const setAccessToken = (token: string, email?: string) => {
+  cachedAccessToken = token;
+  localStorage.setItem("google_sync_logged_in", "true");
+  localStorage.setItem("google_sync_access_token", token);
+  if (email) {
+    localStorage.setItem("google_sync_user_email", email);
+  }
+};
+
 export const handleTokenExpiry = () => {
   cachedAccessToken = null;
   localStorage.removeItem("google_sync_logged_in");

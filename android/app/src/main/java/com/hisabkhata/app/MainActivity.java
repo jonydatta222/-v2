@@ -1,4 +1,4 @@
-package com.hishabkhata.app;
+package com.hisabkhata.app;
 
 import com.getcapacitor.BridgeActivity;
 
