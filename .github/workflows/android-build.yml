@@ -35,6 +35,9 @@ jobs:
     - name: Build Web App
       run: npm run build
       
+    - name: Make gradlew executable
+      run: chmod +x android/gradlew
+
     - name: Sync Capacitor
       run: npx cap sync android
 
