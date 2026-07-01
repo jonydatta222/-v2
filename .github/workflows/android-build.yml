@@ -20,17 +20,13 @@ jobs:
         node-version: '22'
         cache: 'npm'
 
-    - name: Setup Java 17 (Required for legacy dependencies)
+    - name: Setup Java (Java 17 & Java 21)
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
-        java-version: '17'
-
-    - name: Setup Java 21 (Required for modern Gradle & Android SDK)
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'zulu'
-        java-version: '21'
+        java-version: |
+          17
+          21
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
@@ -44,14 +40,47 @@ jobs:
     - name: Make gradlew executable
       run: chmod +x android/gradlew
 
-    - name: Ensure Gradle Wrapper Jar exists
+    - name: Ensure Gradle Wrapper Jar exists and is valid
       run: |
-        if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
-          echo "gradle-wrapper.jar is missing! Recovering by downloading official gradle-wrapper.jar..."
-          mkdir -p android/gradle/wrapper
-          curl -Lo android/gradle/wrapper/gradle-wrapper.jar https://github.com/gradle/gradle/raw/v8.14.3/gradle/wrapper/gradle-wrapper.jar
+        mkdir -p android/gradle/wrapper
+        JAR_PATH="android/gradle/wrapper/gradle-wrapper.jar"
+        
+        # Function to check if a jar is valid zip/jar file
+        is_valid_jar() {
+          if [ -f "$JAR_PATH" ] && unzip -t "$JAR_PATH" > /dev/null 2>&1; then
+            return 0
+          fi
+          return 1
+        }
+
+        if is_valid_jar; then
+          echo "gradle-wrapper.jar is present and valid."
         else
-          echo "gradle-wrapper.jar is present."
+          echo "gradle-wrapper.jar is missing, empty, or corrupt! Downloading valid jar..."
+          # Download from the official Gradle repository with a verified stable tag (v8.2.0)
+          curl -Lo "$JAR_PATH" https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar
+          
+          if is_valid_jar; then
+            echo "Successfully downloaded valid gradle-wrapper.jar from GitHub raw."
+          else
+            echo "Download failed or jar still invalid! Re-trying from a backup stable tag (v8.5.0)..."
+            curl -Lo "$JAR_PATH" https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar
+            
+            if is_valid_jar; then
+              echo "Successfully downloaded valid gradle-wrapper.jar from backup tag."
+            else
+              echo "Download failed! Generating wrapper locally using pre-installed gradle..."
+              cd android
+              gradle wrapper --gradle-version 8.2
+              cd ..
+              if is_valid_jar; then
+                echo "Successfully generated valid gradle-wrapper.jar locally."
+              else
+                echo "Error: Failed to secure a valid gradle-wrapper.jar!"
+                exit 1
+              fi
+            fi
+          fi
         fi
 
     - name: Sync Capacitor
